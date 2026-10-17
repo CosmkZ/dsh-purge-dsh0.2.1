@@ -1,0 +1,96 @@
+--- a/cordis.patch.yml
++++ b/cordis.patch.yml
+@@ -28,7 +28,7 @@
+   config:
+     includeHarnessIdentity: false
+     personaPrefix: ""
+-    personaSuffix: Your working directory is {{cwd}}.
++    personaSuffix: "" # dsh 0.2.1: {{cwd}} is not a registered prompt variable (only provider/model)
+ 
+ - id: dsh-purge
+   inject: [systemPrompt, tools]
+--- a/lib/core.js
++++ b/lib/core.js
+@@ -3482,6 +3482,13 @@
+         replace:
+           'description: "Canonical local URL of the web GUI serving this session." /* [dsh-purge] web surface identity neutralized */',
+       },
++      {
++        // dsh 0.2.1：web-app 变量描述改成 Advertised URL
++        pattern:
++          'description: "Advertised URL of the DeepSeek Harness Web GUI serving this session."',
++        replace:
++          'description: "Advertised URL of the local web GUI serving this session." /* [dsh-purge] web surface identity neutralized */',
++      },
+     ],
+     // #53 会把前一句再收成 Local web GUI，不能再要求两句标记同时在。
+     markersAny: true,
+@@ -3819,6 +3826,11 @@
+     desc: "complete 预设仍保留 dsh-purge 注入 / keep inject after complete prompt",
+     file: ["system-prompt", "system-prompt-nested"],
+     replacements: [
++      {
++        // dsh 0.2.1：complete 分支新增 requiredContexts，旧锚点整块失配，会连带宿主校验失败
++        pattern: "\t\tconst transformed = await this.ctx.waterfall(scopeTarget(this, scope), \"system-prompt/assemble\", assembly, context, () => Promise.resolve(assembly));\n\t\tif (completeSection === void 0 && !runtimeContextSuppressed) return transformed;\n\t\tconst requiredContexts = new Set([...contextByName.values()].filter((entry) => entry.required === true).map((entry) => entry.name));\n\t\treturn {\n\t\t\t...transformed,\n\t\t\tsections: completeSection === void 0 ? transformed.sections : [completeSection],\n\t\t\tcontexts: runtimeContextSuppressed ? transformed.contexts.filter((entry) => requiredContexts.has(entry.name)) : transformed.contexts\n\t\t};",
++        replace: "\t\tconst transformed = await this.ctx.waterfall(scopeTarget(this, scope), \"system-prompt/assemble\", assembly, context, () => Promise.resolve(assembly));\n\t\tconst dshPurgeSections = (transformed.sections || []).filter((s) => String(s && s.name || \"\").startsWith(\"dsh-purge\") && String(s.text || \"\").length > 0);\n\t\tif (completeSection === void 0 && !runtimeContextSuppressed) return transformed;\n\t\tconst requiredContexts = new Set([...contextByName.values()].filter((entry) => entry.required === true).map((entry) => entry.name));\n\t\treturn {\n\t\t\t...transformed,\n\t\t\tsections: completeSection === void 0 ? transformed.sections : (function (complete, purge) {\n\t\t\t\tconst base = { ...complete };\n\t\t\t\treturn [...purge, base]; // [dsh-purge] complete prompt keeps waterfall inject\n\t\t\t})(completeSection, dshPurgeSections),\n\t\t\tcontexts: runtimeContextSuppressed ? transformed.contexts.filter((entry) => requiredContexts.has(entry.name)) : transformed.contexts\n\t\t};",
++      },
+       {
+         // 缩进不固定。0.2 有的构建用 tab，有的用空格；只认 tab 时匹配为 0，重启校验会说没写进宿主。
+         pattern: /[ \t]*const transformed = await this\.ctx\.waterfall\(scopeTarget\(this, scope\), "system-prompt\/assemble", assembly, context, \(\) => Promise\.resolve\(assembly\)\);\n[ \t]*if \(completeSection === void 0 && !runtimeContextSuppressed\) return transformed;\n[ \t]*return \{\n[ \t]*\.\.\.transformed,\n[ \t]*sections: completeSection === void 0 \? transformed\.sections : \[completeSection\],\n[ \t]*contexts: runtimeContextSuppressed \? \[\] : transformed\.contexts\n[ \t]*\};/,
+--- a/lib/identity.js
++++ b/lib/identity.js
+@@ -5,7 +5,7 @@
+ export const REDTEAM_ROLE_SECTION = "dshpg-redteam-role";
+ export { CAPABILITY_SECTION, capabilityProtocolText };
+ export const IDENTITY_CARD_PREFIX = "WHO YOU ARE (highest priority";
+-export const CWD_ONLY_SUFFIX = "Your working directory is {{cwd}}.";
++export const CWD_ONLY_SUFFIX = ""; // dsh 0.2.1: {{cwd}} is not a registered variable in persona sections
+ export { PHASE1_KEEP_EXPR, widenPhase1KeepFilter } from "./phase1-keep.js";
+ 
+ const DSH_INTERPOLATE_ALLOWED = new Set(["cwd", "model", "provider"]);
+@@ -153,7 +153,7 @@
+     .replace(OLD_IDENTITY_LOCK, "")
+     .replace(
+       /You are a coding agent powered by the \{\{model\}\} model, running on the DeepSeek Harness\. Your working directory is \{\{cwd\}\}\.?\s*/g,
+-      "Working directory: {{cwd}}. ",
++      "", // dsh 0.2.1: {{cwd}} is not a registered variable in persona sections
+     )
+     .replace(
+       /You are a coding agent powered by the \{\{model\}\} model, running on the DeepSeek Harness\.?\s*/g,
+@@ -161,7 +161,7 @@
+     )
+     .replace(
+       /You are a coding agent powered by the \{\{model\}\} model\. Your working directory is \{\{cwd\}\}\.?\s*/g,
+-      "Working directory: {{cwd}}. ",
++      "", // dsh 0.2.1: {{cwd}} is not a registered variable in persona sections
+     )
+     .replace(
+       /The DeepSeek Harness implementation checkout is at [\s\S]*?Use this checkout only to inspect or extend DSH itself\.?\s*/g,
+--- a/package.json
++++ b/package.json
+@@ -1,7 +1,7 @@
+ {
+   "name": "dsh-purge",
+-  "version": "1.1.71",
+-  "description": "DeepSeek Harness 破甲：让所有模型都能破甲，不同模型可换不同提示词；默认提示词面向国模「小码酱」。Jailbreak for every model — swap prompts per model. 求 Star 收藏 ⭐ 如要二开，请查看署名要求部分",
++  "version": "1.1.71-dsh0.2.1.1",
++  "description": "DeepSeek Harness 破甲：让所有模型都能破甲，不同模型可换不同提示词；默认提示词面向国模「小码酱」。Jailbreak for every model — swap prompts per model. 求 Star 收藏 ⭐ 如要二开，请查看署名要求部分 [local build for dsh 0.2.1-rc.1]",
+   "type": "module",
+   "main": "lib/index.js",
+   "exports": {
+--- a/presets/redteam/agent.cordis.yml
++++ b/presets/redteam/agent.cordis.yml
+@@ -313,11 +313,8 @@
+         # 注意：不能 deny `subagent` —— 它是这一行自己注册的 scoped 工具，不在全局工具库里，
+         # 写进 deny 会让 tools.restrict() 校验失败、整个委派路径报 "unknown global tool"（v0.8.0 踩过）。
+         # 子智能体拿不到 subagent_fork/workflow/ralph，加上 maxDepth: 1，实际已无派发能力。
+-        toolFilter:
+-          deny:
+-            - subagent_fork
+-            - workflow
+-            - ralph
++        # dsh 0.2.1: tool-subagent 已移除 toolFilter（传入即抛错），
++        # 叶子约束改由 maxDepth: 1 承担，此处不再下发 deny 列表。
+ 
+     # Fork omits model selection so provider/model stay equal to the parent and
+     # the inherited history remains eligible for KV Cache reuse. This preset
