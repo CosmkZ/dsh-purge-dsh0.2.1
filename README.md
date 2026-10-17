@@ -45,7 +45,7 @@ v1.1.71 在 0.2.1-rc.1 上有四处硬分歧，其中两处会直接让功能不
 
 ```sh
 dsh plugin --profile desktop add \
-  https://github.com/<OWNER>/dsh-purge-dsh0.2.1/archive/refs/heads/main.tar.gz
+  https://github.com/CosmkZ/dsh-purge-dsh0.2.1/archive/refs/heads/main.tar.gz
 ```
 
 `dsh` 不在 PATH 时用应用内置 CLI（macOS）：
@@ -53,13 +53,13 @@ dsh plugin --profile desktop add \
 ```sh
 sh "/Applications/DeepSeek Harness.app/Contents/Resources/runtime/cli/bin/dsh" \
   plugin --profile desktop add \
-  https://github.com/<OWNER>/dsh-purge-dsh0.2.1/archive/refs/heads/main.tar.gz
+  https://github.com/CosmkZ/dsh-purge-dsh0.2.1/archive/refs/heads/main.tar.gz
 ```
 
 ### 方式 B：本地目录（便于改）
 
 ```sh
-git clone https://github.com/<OWNER>/dsh-purge-dsh0.2.1.git ~/.dsh/plugins/dsh-purge
+git clone https://github.com/CosmkZ/dsh-purge-dsh0.2.1.git ~/.dsh/plugins/dsh-purge
 ```
 
 然后编辑 `~/.dsh/profiles/desktop/package.json`（先备份）：
@@ -80,7 +80,7 @@ cd ~/.dsh/profiles/desktop && pnpm install
 ```sh
 git clone https://github.com/YuJunZhiXue/dsh-purge.git ~/.dsh/plugins/dsh-purge
 cd ~/.dsh/plugins/dsh-purge
-curl -L https://github.com/<OWNER>/dsh-purge-dsh0.2.1/raw/main/patches/dsh-0.2.1.patch | git apply
+curl -L https://github.com/CosmkZ/dsh-purge-dsh0.2.1/raw/main/patches/dsh-0.2.1.patch | git apply
 ```
 
 之后按方式 B 的 `package.json` + `pnpm install` 接入 profile。
